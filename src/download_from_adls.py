@@ -5,7 +5,7 @@ from azure.storage.filedatalake import DataLakeServiceClient
 
 load_dotenv()
 
-def download_file_from_adis() -> str:
+def download_file_from_adls() -> str:
     account_name = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
     account_key = os.getenv("AZURE_STORAGE_ACCOUNT_KEY")
     file_system_name = os.getenv("AZURE_FILE_SYSTEM")
