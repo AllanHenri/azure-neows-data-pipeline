@@ -1,4 +1,14 @@
 from pyspark.sql import functions as F
+from pyspark.sql.types import (
+    ArrayType,
+    BooleanType,
+    DoubleType,
+    LongType,
+    MapType,
+    StringType,
+    StructField,
+    StructType,
+)
 
 from src.config import LOCAL_RAW_PATH, PROCESSED_OUTPUT, CURATED_OUTPUT
 from src.utils.spark_session import create_spark_session
@@ -6,9 +16,9 @@ from src.utils.spark_session import create_spark_session
 
 def run_transformation(input_path: str | None = None) -> None:
     """
-    Reads the raw NASA NeoWs JSON, flattens nested fields,
-    creates analytical columns, and saves processed + curated
-    datasets in Parquet.
+    Reads the raw NASA NeoWs JSON, converts near_earth_objects to a map,
+    flattens nested fields, creates analytical columns, and saves
+    processed + curated datasets in Parquet.
     """
     spark = create_spark_session()
 
@@ -16,10 +26,70 @@ def run_transformation(input_path: str | None = None) -> None:
 
     df = spark.read.option("multiline", "true").json(raw_input)
 
-    neo_map_df = df.select("near_earth_objects")
+    close_approach_schema = ArrayType(
+        StructType([
+            StructField("close_approach_date", StringType(), True),
+            StructField("close_approach_date_full", StringType(), True),
+            StructField("epoch_date_close_approach", LongType(), True),
+            StructField(
+                "relative_velocity",
+                StructType([
+                    StructField("kilometers_per_second", StringType(), True),
+                    StructField("kilometers_per_hour", StringType(), True),
+                    StructField("miles_per_hour", StringType(), True),
+                ]),
+                True,
+            ),
+            StructField(
+                "miss_distance",
+                StructType([
+                    StructField("astronomical", StringType(), True),
+                    StructField("lunar", StringType(), True),
+                    StructField("kilometers", StringType(), True),
+                    StructField("miles", StringType(), True),
+                ]),
+                True,
+            ),
+            StructField("orbiting_body", StringType(), True),
+        ])
+    )
+
+    asteroid_schema = StructType([
+        StructField("id", StringType(), True),
+        StructField("neo_reference_id", StringType(), True),
+        StructField("name", StringType(), True),
+        StructField("nasa_jpl_url", StringType(), True),
+        StructField("absolute_magnitude_h", DoubleType(), True),
+        StructField(
+            "estimated_diameter",
+            StructType([
+                StructField(
+                    "meters",
+                    StructType([
+                        StructField("estimated_diameter_min", DoubleType(), True),
+                        StructField("estimated_diameter_max", DoubleType(), True),
+                    ]),
+                    True,
+                )
+            ]),
+            True,
+        ),
+        StructField("is_potentially_hazardous_asteroid", BooleanType(), True),
+        StructField("is_sentry_object", BooleanType(), True),
+        StructField("close_approach_data", close_approach_schema, True),
+    ])
+
+    neo_map_schema = MapType(StringType(), ArrayType(asteroid_schema))
+
+    neo_map_df = df.select(
+        F.from_json(
+            F.to_json(F.col("near_earth_objects")),
+            neo_map_schema
+        ).alias("near_earth_objects_map")
+    )
 
     exploded_dates_df = neo_map_df.select(
-        F.explode("near_earth_objects").alias("approach_date", "asteroids")
+        F.explode("near_earth_objects_map").alias("approach_date", "asteroids")
     )
 
     exploded_asteroids_df = exploded_dates_df.select(

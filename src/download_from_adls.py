@@ -1,43 +1,45 @@
-import os
-from pathlib import Path
-from dotenv import load_dotenv
 from azure.storage.filedatalake import DataLakeServiceClient
 
-load_dotenv()
+from src.config import (
+    AZURE_STORAGE_CONNECTION_STRING,
+    AZURE_FILE_SYSTEM,
+    AZURE_DIRECTORY,
+    AZURE_FILE_NAME,
+    LOCAL_RAW_PATH,
+)
+
 
 def download_file_from_adls() -> str:
-    account_name = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
-    account_key = os.getenv("AZURE_STORAGE_ACCOUNT_KEY")
-    file_system_name = os.getenv("AZURE_FILE_SYSTEM")
-    directory_name = os.getenv("AZURE_DIRECTORY")
-    file_name = os.getenv("AZURE_FILE_NAME")
-    local_raw_path = os.getenv("LOCAL_RAW_PATH", "data/raw/neo_feed.json")
+    if not all([
+        AZURE_STORAGE_CONNECTION_STRING,
+        AZURE_FILE_SYSTEM,
+        AZURE_DIRECTORY,
+        AZURE_FILE_NAME,
+    ]):
+        raise ValueError("Azure environment variables are incomplete.")
 
-    if not all([account_name, account_key, file_system_name, directory_name, file_name]):
-        raise ValueError("Variáveis de ambiente da Azure estão incompletas.")
-    
-    account_url = f"https://{account_name}.dfs.core.windows.net"
+    service_client = DataLakeServiceClient.from_connection_string(
+        AZURE_STORAGE_CONNECTION_STRING
+    )
 
-    service_client = DataLakeServiceClient(account_url=account_url, credential=account_key)
+    file_system_client = service_client.get_file_system_client(
+        file_system=AZURE_FILE_SYSTEM
+    )
 
-    file_system_client = service_client.get_file_system_client(file_system=file_system_name)
-
-    directory_name = file_system_client.get_directory_client(directory_name)
-
-    file_client = directory_name.get_file_client(file_name)
+    directory_client = file_system_client.get_directory_client(AZURE_DIRECTORY)
+    file_client = directory_client.get_file_client(AZURE_FILE_NAME)
 
     download = file_client.download_file()
     file_bytes = download.readall()
 
-    local_path = Path(local_raw_path)
-    local_path.parent.mkdir(parents=True, exist_ok=True)
+    LOCAL_RAW_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(local_path, "wb") as f:
+    with open(LOCAL_RAW_PATH, "wb") as f:
         f.write(file_bytes)
 
-    print(f"Arquivo baixado para: {local_path}")
-    return str(local_path)
+    print(f"Downloaded file to: {LOCAL_RAW_PATH}")
+    return str(LOCAL_RAW_PATH)
+
 
 if __name__ == "__main__":
-    download_file_from_adis()
-    
+    download_file_from_adls()
