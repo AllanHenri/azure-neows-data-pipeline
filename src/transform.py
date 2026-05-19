@@ -1,21 +1,20 @@
 from pyspark.sql import functions as F
-from dotenv import load_dotenv
-import os
+
+from src.config import LOCAL_RAW_PATH, PROCESSED_OUTPUT, CURATED_OUTPUT
 from src.utils.spark_session import create_spark_session
 
-load_dotenv()
 
-def run_trasformation(input_path: str) -> None:
-
+def run_transformation(input_path: str | None = None) -> None:
     """
-    Reads the raw NASA NeoWs JSON downloaded from ADLS/local,
-    flattens nested fields, creates analytical columns,
-    and saves processed + curated outputs in Parquet.
+    Reads the raw NASA NeoWs JSON, flattens nested fields,
+    creates analytical columns, and saves processed + curated
+    datasets in Parquet.
     """
-
     spark = create_spark_session()
 
-    df = spark.read.option("multiline", "true").json(input_path)
+    raw_input = str(input_path or LOCAL_RAW_PATH)
+
+    df = spark.read.option("multiline", "true").json(raw_input)
 
     neo_map_df = df.select("near_earth_objects")
 
@@ -25,7 +24,7 @@ def run_trasformation(input_path: str) -> None:
 
     exploded_asteroids_df = exploded_dates_df.select(
         "approach_date",
-        F.explode("asteroids").alias("asteroid")
+        F.explode("asteroids").alias("asteroid"),
     )
 
     flattened_df = exploded_asteroids_df.select(
@@ -48,6 +47,7 @@ def run_trasformation(input_path: str) -> None:
         F.col("asteroid.close_approach_data")[0]["miss_distance"]["lunar"].cast("double").alias("miss_distance_lunar"),
         F.col("asteroid.close_approach_data")[0]["orbiting_body"].alias("orbiting_body"),
     )
+
     final_df = (
         flattened_df
         .withColumn("approach_date", F.to_date("approach_date"))
@@ -60,7 +60,6 @@ def run_trasformation(input_path: str) -> None:
         )
     )
 
-    # Curated metrics
     curated_df = (
         final_df.groupBy("year", "month")
         .agg(
@@ -74,18 +73,13 @@ def run_trasformation(input_path: str) -> None:
         )
     )
 
-    PROCESSED_OUTPUT = os.getenv("PROCESSED_OUTPUT")
-    CURATED_OUTPUT = os.getenv("CURATED_OUTPUT")
-
-
-    # Ensure output dirs exist
     PROCESSED_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     CURATED_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
 
-    # Save outputs
     final_df.write.mode("overwrite").parquet(str(PROCESSED_OUTPUT))
     curated_df.write.mode("overwrite").parquet(str(CURATED_OUTPUT))
 
+    print(f"Raw input used: {raw_input}")
     print(f"Processed dataset saved to: {PROCESSED_OUTPUT}")
     print(f"Curated dataset saved to: {CURATED_OUTPUT}")
 
@@ -93,6 +87,4 @@ def run_trasformation(input_path: str) -> None:
 
 
 if __name__ == "__main__":
-    raise SystemExit(
-        "Run this module from batch_job.py or call run_transformation(input_path)."
-    )
+    run_transformation()
