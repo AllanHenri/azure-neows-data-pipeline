@@ -188,7 +188,8 @@ data modeling for analytics
 It is part of a broader portfolio focused on ETL pipelines, PySpark, orchestration, and cloud-based data workflows.
 
 screenshots
-<img width="1078" height="409" alt="image" src="https://github.com/user-attachments/assets/fb4bc02a-4f89-4a28-aa8e-67b4c44b0ab5" />
+<img width="1606" height="382" alt="image" src="https://github.com/user-attachments/assets/55193862-cc44-4eaf-93e7-9c1268baa2a5" />
+
 <img width="1524" height="608" alt="image" src="https://github.com/user-attachments/assets/f5116d05-e64b-4795-afa4-1e1621681be1" />
 <img width="252" height="386" alt="image" src="https://github.com/user-attachments/assets/a0a18a93-9535-448a-9d76-f7a147a578a8" />
 
